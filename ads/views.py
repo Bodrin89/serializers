@@ -1,21 +1,58 @@
 
-from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView, ListView, UpdateView, CreateView, DeleteView
+from rest_framework.generics import ListAPIView
+
 from ads.models import Ad, Category
 
 import json
 
-from dz_27 import settings
+from ads.serializers import AdListSerializer
 from users.models import Person
 
 
 def index(request):
     return JsonResponse({"status": "ok"})
+
+
+class AdListView(ListAPIView):
+    queryset = Ad.objects.all()
+    serializer_class = AdListSerializer
+
+    def get(self, request, *args, **kwargs):
+        """Получение всех объявлений, по id категории, по вхождению слова в строку, по локации"""
+        categories = request.GET.getlist('cat', None)
+        if categories:
+            cat_q = None
+            for cat in categories:
+                if cat_q is None:
+                    cat_q = Q(category__in=cat)
+                else:
+                    cat_q |= Q(category__in=cat)
+            if cat_q:
+                self.queryset = self.queryset.filter(cat_q)
+
+        search_text = request.GET.get('text', None)
+        if search_text:
+            self.queryset = self.queryset.filter(description__icontains=search_text)
+
+        location = request.GET.get('location', None)
+        if location:
+            user = Person.objects.all().filter(location__name__icontains=location)
+            self.queryset = self.queryset.filter(author_id__in=user)
+
+        price_from = request.GET.get('price_from', None)
+        price_to = request.GET.get('price_to', None)
+        if price_from and price_to:
+            price = [i for i in range(int(price_from), int(price_to))]
+            self.queryset = self.queryset.filter(price__in=price)
+
+        return super().get(request, *args, **kwargs)
 
 
 class AdDetailView(DetailView):
@@ -32,43 +69,6 @@ class AdDetailView(DetailView):
             "image": ad.image.url,
             "is_published": ad.is_published
         })
-
-
-@method_decorator(csrf_exempt, name='dispatch')
-class AdListView(ListView):
-    model = Ad
-
-    def get(self, request, *args, **kwargs):
-        """Получение всех объявлений"""
-        super().get(self, request, *args, **kwargs)
-
-        self.object_list = self.object_list.select_related('author', 'category').order_by('-price')
-
-        paginator = Paginator(self.object_list, settings.TOTAL_ON_PAGE)
-        page_num = request.GET.get('page')
-        page_obj = paginator.get_page(page_num)
-
-        ads = []
-        for ad in page_obj:
-            image = ad.image.url if ad.image else None
-            ads.append({
-                "id": ad.pk,
-                "name": ad.name,
-                "price": ad.price,
-                "description": ad.description,
-                "image": image,
-                "is_published": ad.is_published,
-                "author_id": ad.author_id,
-                "category_id": ad.category_id
-            })
-
-        response = {
-            "items": ads,
-            "num_page": paginator.num_pages,
-            "total": paginator.count
-        }
-
-        return JsonResponse(response, safe=False)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -230,4 +230,3 @@ class CatDeleteView(DeleteView):
         """Удаление категории"""
         super().delete(self, request, *args, **kwargs)
         return JsonResponse({"status": "ok"}, status=200)
-
