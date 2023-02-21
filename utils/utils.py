@@ -39,5 +39,5 @@ def convert_file(csv_file, json_file, model):
 convert_file('../data/ad.csv', '../data/ad.json', 'ads.Ad')
 convert_file('../data/category.csv', '../data/category.json', 'ads.Category')
 convert_file('../data/location.csv', '../data/location.json', 'users.Location')
-convert_file('../data/user.csv', '../data/user.json', 'users.Person')
+convert_file('../data/user.csv', '../data/user.json', 'users.User')
 

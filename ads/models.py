@@ -1,8 +1,8 @@
-from django.contrib.auth.models import User
+
 from django.db import models
 from django.db.models import CASCADE
 
-from users.models import Person
+from users.models import User
 
 
 class Category(models.Model):
@@ -22,7 +22,7 @@ class Ad(models.Model):
     description = models.TextField()
     image = models.ImageField(upload_to='images', null=False)
     is_published = models.BooleanField()
-    author = models.ForeignKey(Person, on_delete=CASCADE, blank=True, null=True)
+    author = models.ForeignKey(User, on_delete=CASCADE, blank=True, null=True)
     category = models.ForeignKey(Category, on_delete=CASCADE, blank=True, null=True)
 
     class Meta:

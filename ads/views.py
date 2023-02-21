@@ -1,4 +1,3 @@
-
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -6,14 +5,16 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView, ListView, UpdateView, CreateView, DeleteView
-from rest_framework.generics import ListAPIView
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.permissions import IsAuthenticated
 
 from ads.models import Ad, Category
 
 import json
 
-from ads.serializers import AdListSerializer
-from users.models import Person
+from ads.serializers import AdListSerializer, AdDetailSerializer
+from users.models import User
 
 
 def index(request):
@@ -43,7 +44,7 @@ class AdListView(ListAPIView):
 
         location = request.GET.get('location', None)
         if location:
-            user = Person.objects.all().filter(location__name__icontains=location)
+            user = User.objects.all().filter(location__name__icontains=location)
             self.queryset = self.queryset.filter(author_id__in=user)
 
         price_from = request.GET.get('price_from', None)
@@ -55,20 +56,10 @@ class AdListView(ListAPIView):
         return super().get(request, *args, **kwargs)
 
 
-class AdDetailView(DetailView):
-    model = Ad
-
-    def get(self, *args, **kwargs):
-        """Получение объявления по id"""
-        ad = self.get_object()
-        return JsonResponse({
-            "id": ad.pk,
-            "name": ad.name,
-            "price": ad.price,
-            "description": ad.description,
-            "image": ad.image.url,
-            "is_published": ad.is_published
-        })
+class AdDetailView(RetrieveAPIView):
+    queryset = Ad.objects.all()
+    serializer_class = AdDetailSerializer
+    permission_classes = [IsAuthenticated]
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -88,7 +79,7 @@ class AdUpdateView(UpdateView):
         self.object.image = ad_data.get('image', self.object.image)
         self.object.is_published = ad_data.get('is_published', self.object.is_published)
 
-        self.object.author = get_object_or_404(Person, pk=ad_data.get('author', self.object.author.pk))
+        self.object.author = get_object_or_404(User, pk=ad_data.get('author', self.object.author.pk))
         self.object.category = get_object_or_404(Category, pk=ad_data.get('category', self.object.category.pk))
 
         self.object.save()
@@ -120,7 +111,7 @@ class AdCreateView(CreateView):
             is_published=ad_data['is_published']
         )
         new_ad.image = ad_data.get('image', None)
-        new_ad.author = get_object_or_404(Person, pk=ad_data['author'])
+        new_ad.author = get_object_or_404(User, pk=ad_data['author'])
         new_ad.category = get_object_or_404(Category, pk=ad_data['category'])
 
         new_ad.save()
