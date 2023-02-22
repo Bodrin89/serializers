@@ -6,14 +6,15 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView, ListView, UpdateView, CreateView, DeleteView
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.generics import ListAPIView, RetrieveAPIView, UpdateAPIView, DestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 
 from ads.models import Ad, Category
 
 import json
 
-from ads.serializers import AdListSerializer, AdDetailSerializer
+from ads.permissions import CheckAuthorPermission
+from ads.serializers import AdListSerializer, AdDetailSerializer, AdUpdateSerializer, AdDeleteSerializer
 from users.models import User
 
 
@@ -62,43 +63,17 @@ class AdDetailView(RetrieveAPIView):
     permission_classes = [IsAuthenticated]
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class AdUpdateView(UpdateView):
-    model = Ad
-    fields = ['name', 'price', 'description', 'image', 'is_published']
-
-    def patch(self, request, *args, **kwargs):
-        """Обновление данных объявления"""
-        super().post(self, request, *args, **kwargs)
-
-        ad_data = json.loads(request.body)
-
-        self.object.name = ad_data.get('name', self.object.name)
-        self.object.price = ad_data.get('price', self.object.price)
-        self.object.description = ad_data.get('description', self.object.description)
-        self.object.image = ad_data.get('image', self.object.image)
-        self.object.is_published = ad_data.get('is_published', self.object.is_published)
-
-        self.object.author = get_object_or_404(User, pk=ad_data.get('author', self.object.author.pk))
-        self.object.category = get_object_or_404(Category, pk=ad_data.get('category', self.object.category.pk))
-
-        self.object.save()
-
-        return JsonResponse({
-            "name": self.object.name,
-            "price": self.object.price,
-            "description": self.object.description,
-            "image": self.object.image.url,
-            "is_published": self.object.is_published,
-            "author": self.object.author_id,
-            "category": self.object.category_id
-        })
+class AdUpdateView(UpdateAPIView):
+    queryset = Ad.objects.all()
+    serializer_class = AdUpdateSerializer
+    permission_classes = [CheckAuthorPermission]
 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AdCreateView(CreateView):
     model = Ad
     fields = ['name', 'price', 'description', 'image', 'is_published', 'author_id', 'category_id']
+
 
     def post(self, request, *args, **kwargs):
         """Создание объявления"""
@@ -147,15 +122,10 @@ class AdImageLoadView(UpdateView):
         })
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class AdDeleteView(DeleteView):
-    model = Ad
-    success_url = '/'  # URL на который перенаправляет пользователя после удаления записи
-
-    def delete(self, request, *args, **kwargs):
-        """Удаление объявления"""
-        super().delete(request, *args, **kwargs)
-        return JsonResponse({"status": "ok"}, status=200)
+class AdDeleteView(DestroyAPIView):
+    queryset = Ad.objects.all()
+    serializer_class = AdDeleteSerializer
+    permission_classes = [CheckAuthorPermission]
 
 
 class CategoryDetailView(DetailView):
